@@ -47,7 +47,7 @@ Proposes operational subtasks and bottom-up effort inputs. The application deriv
 - `model_human_agent_activities(request: HumanAgentActivityModelingRequest) -> ProviderStageResponse`
 - `estimate_activity_effort(request: ActivityEffortEstimationRequest) -> ProviderStageResponse`
 
-The complete canonical transformation pipeline. An adapter that omits any of the four methods does not satisfy this protocol, and `decompose_transformation` fails explicitly.
+The complete canonical transformation pipeline. An adapter that omits any of the four methods does not satisfy this protocol, and both `decompose_transformation` and `estimate_transformation` fail explicitly.
 
 ### `DecompositionProvider`
 
@@ -67,7 +67,7 @@ They are declared for custom composition and granular capability checks. The can
 
 - `evaluate(request: SemanticEvaluationRequest | TransformationSemanticEvaluationRequest) -> SemanticEvaluation`
 
-One entry point serves both evaluation checkpoints; the request type selects the rubric. The application also accepts a bare callable with the same shape when resolving a baseline evaluator, so the protocol describes the object form rather than the only accepted form.
+One entry point serves both evaluation checkpoints; the request type selects the rubric. The application accepts either an object with this shape or a bare callable at both the baseline and transformation checkpoints, so the protocol describes the object form rather than the only accepted form.
 
 ## Usage examples
 
@@ -156,7 +156,7 @@ assert isinstance(AlwaysAccept(), SemanticEvaluator)
   providers/*.py ── satisfy the protocols structurally, without importing them
 ```
 
-- `application/task_decomposition.py` and `application/transformation_decomposition.py` guard with `isinstance` and read `provider_id`.
+- `application/task_decomposition.py`, `application/transformation_decomposition.py`, and `application/normalized_estimation.py` guard with `isinstance` and read `provider_id` through the shared `_provider_stage` helper.
 - `application/provider_service.py` guards with `DecompositionProvider` for the combined flow.
 - `providers/openai.py`, `gemini.py`, and `deepseek.py` implement the methods and set `provider_id` but do not import this package.
 - `tests/test_import_boundary.py` asserts the canonical protocol names exist and legacy modules stay absent.

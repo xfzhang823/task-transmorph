@@ -462,7 +462,7 @@ def test_transformation_prompts_separate_substitutability_from_human_responsibil
     assert "Classify the core operational execution, not every responsibility" in (
         RETAIN_REMOVE_PROMPT
     )
-    assert "A REMOVE classification may still require a narrower human decision" in (
+    assert "Use REMOVE only when the subtask's required human action" in (
         RETAIN_REMOVE_PROMPT
     )
     assert "must not claim a human-owned decision" in AGENTIC_TASK_SYNTHESIS_PROMPT
@@ -470,6 +470,10 @@ def test_transformation_prompts_separate_substitutability_from_human_responsibil
         HUMAN_AGENT_ACTIVITY_MODELING_PROMPT
     )
     assert "exclude replaced baseline execution" in (
+        HUMAN_AGENT_ACTIVITY_MODELING_PROMPT
+    )
+    assert "classify it RETAIN even when AI prepares" in RETAIN_REMOVE_PROMPT
+    assert "same responsibility as AI_INTERACTION or AI_VERIFICATION" in (
         HUMAN_AGENT_ACTIVITY_MODELING_PROMPT
     )
 

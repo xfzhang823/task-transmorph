@@ -277,3 +277,55 @@ def test_staged_pipeline_preserves_frozen_baseline_partition_with_support_work()
     assert result.retained_human_work.value + result.gross_removed_work.value == result.w0
     assert result.gross_removed_work.value != result.added_human_work.value
     assert result.w1 == result.retained_human_work.value + result.added_human_work.value
+
+
+def test_required_approval_remains_retained_when_ai_support_is_added():
+    """Continuing approval is baseline RETAIN; AI support is incremental."""
+    operational = make_operational()
+    classification = RetainRemoveClassification(
+        task=TASK,
+        classified_subtasks=(
+            ClassifiedSubtask(
+                subtask_id="sub-1",
+                classification=TransformationClassification.REMOVE,
+                effort=EffortQuantity(value=30, unit=UNIT, time_basis=PER_OPERATION),
+            ),
+            ClassifiedSubtask(
+                subtask_id="sub-2",
+                classification=TransformationClassification.RETAIN,
+                effort=EffortQuantity(value=60, unit=UNIT, time_basis=PER_OPERATION),
+            ),
+            ClassifiedSubtask(
+                subtask_id="sub-3",
+                classification=TransformationClassification.REMOVE,
+                effort=EffortQuantity(value=10, unit=UNIT, time_basis=PER_OPERATION),
+            ),
+        ),
+    )
+    accounting = AbsoluteEffortInput(
+        baseline_human_effort=EffortQuantity(
+            value=100, unit=UNIT, time_basis=PER_OPERATION
+        ),
+        retained_human_work=EffortQuantity(
+            value=60, unit=UNIT, time_basis=PER_OPERATION
+        ),
+        gross_removed_work=EffortQuantity(
+            value=40, unit=UNIT, time_basis=PER_OPERATION
+        ),
+    )
+
+    result = _run_staged_pipeline(
+        operational,
+        classification,
+        accounting,
+        support_work=SupportWorkInputs(
+            ai_interaction=absolute_amount(0),
+            ai_verification=absolute_amount(5),
+        ),
+    )
+
+    assert result.retained_human_work.value == Decimal(60)
+    assert result.gross_removed_work.value == Decimal(40)
+    assert result.ai_verification_work.value == Decimal(5)
+    assert result.added_human_work.value == Decimal(5)
+    assert result.w1 == Decimal(65)

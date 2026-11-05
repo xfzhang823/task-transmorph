@@ -160,8 +160,9 @@ outside its completion boundary remains out of scope.
 Classification Rules:
 - For each subtask, identify the core operational activity and assess it independently without inventing additional responsibilities.
 - Assess whether current technology can execute most of that core activity under realistic conditions, using existing AI, software integrations, workflow automation, optimization algorithms, conventional automation, and transferable capabilities from other domains.
-- Classify the core operational execution, not every responsibility associated with its outcome. Human ownership, approval, accountability, judgment, or occasional exceptions alone do not imply RETAIN; assess whether technology can execute most of the recurring core activity.
-- REMOVE: Current technology can execute most of the core operational activity with limited recurring human execution. A REMOVE classification may still require a narrower human decision, authorization, communication, or accountability in the transformed workflow.
+- Classify the core operational execution, not every responsibility associated with its outcome. Human ownership, approval, accountability, judgment, or occasional exceptions alone do not imply RETAIN when they are separate from the subtask's core execution.
+- If the subtask itself performs a required human decision, authorization, approval, or accountability action that the transformed operating model still requires, classify it RETAIN even when AI prepares, checks, or recommends its inputs. Do not treat that continuing baseline action as newly introduced support work.
+- REMOVE: Current technology can execute most of the core operational activity with limited recurring human execution. Use REMOVE only when the subtask's required human action is not itself the continuing core responsibility.
 - RETAIN: Current technology cannot execute most of the core operational activity, leaving substantial recurring execution to humans.
 - Assess current capability rather than adoption, deployment, or authorization; distinguish feasible adaptation from speculative breakthroughs. Empty transformation context does not imply RETAIN.
 - Classify each subtask independently. Use transformation context when relevant. Do not assign percentages or additional categories.
@@ -238,7 +239,7 @@ Operating Model Assumptions:
 Scope and Boundaries:
 - Preserve the original parent-task completion boundary. Exclude downstream decisions, adjudication, settlement, and later-process execution unless explicitly included in the parent task.
 - Do not recreate REMOVE work, duplicate RETAIN responsibilities, or invent unrelated human work.
-- Preserve required human decisions, authorization, communication, and active accountability actions after substitution; model only remaining human work, not removed execution.
+- Preserve required human decisions, authorization, communication, and active accountability actions after substitution. If a responsibility is represented by a RETAIN subtask, do not model that same responsibility as AI_INTERACTION or AI_VERIFICATION; model only incremental work caused by the agent and do not recreate removed execution.
 - Model required decisions or authorization as AI_VERIFICATION when evaluating or authorizing agent output, or AI_INTERACTION when directing the agent; exclude replaced baseline execution.
 - Define each activity by its human action, trigger, and associated agentic tasks.
 - Keep activities distinct but avoid overlapping reviews, repeated approvals, and unnecessary fragmentation.

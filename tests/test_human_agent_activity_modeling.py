@@ -182,5 +182,7 @@ def test_external_provider_without_canonical_capability_fails_explicitly():
 
 def test_modeling_prompt_preserves_retained_human_boundaries_and_no_effort_semantics():
     assert "Do not recreate REMOVE work" in HUMAN_AGENT_ACTIVITY_MODELING_PROMPT
-    assert "Retained approval" in HUMAN_AGENT_ACTIVITY_MODELING_PROMPT
+    assert "required human decisions, authorization, communication" in (
+        HUMAN_AGENT_ACTIVITY_MODELING_PROMPT
+    )
     assert "Do not estimate occurrences" in HUMAN_AGENT_ACTIVITY_MODELING_PROMPT

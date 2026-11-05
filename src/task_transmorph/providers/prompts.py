@@ -160,12 +160,10 @@ outside its completion boundary remains out of scope.
 Classification Rules:
 - For each subtask, identify the core operational activity and assess it independently without inventing additional responsibilities.
 - Assess whether current technology can execute most of that core activity under realistic conditions, using existing AI, software integrations, workflow automation, optimization algorithms, conventional automation, and transferable capabilities from other domains.
-- REMOVE: Current technology can execute most of the core operational activity with limited recurring human execution.
+- Classify the core operational execution, not every responsibility associated with its outcome. Human ownership, approval, accountability, judgment, or occasional exceptions alone do not imply RETAIN; assess whether technology can execute most of the recurring core activity.
+- REMOVE: Current technology can execute most of the core operational activity with limited recurring human execution. A REMOVE classification may still require a narrower human decision, authorization, communication, or accountability in the transformed workflow.
 - RETAIN: Current technology cannot execute most of the core operational activity, leaving substantial recurring execution to humans.
-- Assess technological capability, not deployment, industry adoption, or authorization. Empty transformation context does not imply RETAIN.
-- Distinguish feasible adaptation of existing technology from speculative advances requiring fundamental breakthroughs.
-- Do not classify RETAIN merely because the activity involves judgment, interpretation, coordination, decisions, oversight, approval, accountability, or occasional exceptions; assess whether technology can perform those core functions.
-- Treat oversight, approval, accountability, escalation, and occasional exception handling separately from substantial recurring execution of the core activity.
+- Assess current capability rather than adoption, deployment, or authorization; distinguish feasible adaptation from speculative breakthroughs. Empty transformation context does not imply RETAIN.
 - Classify each subtask independently. Use transformation context when relevant. Do not assign percentages or additional categories.
 
 JSON Output Rules:
@@ -181,12 +179,11 @@ AGENTIC_TASK_SYNTHESIS_PROMPT = """
 Group the frozen baseline subtasks classified REMOVE into coherent agentic tasks that describe what AI is responsible for in the transformed workflow.
 
 - Use only source subtask IDs from the supplied decomposition, and only IDs classified REMOVE.
-- Preserve the supplied task identity and parent-output contract; the transformed responsibility remains within the same bounded output.
 - Assign every REMOVE subtask to exactly one agentic task. Assign no RETAIN subtask.
 - Group subtasks when they share a coherent responsibility, required inputs, and expected deliverables; keep meaningfully distinct responsibilities separate.
+- Preserve required outcomes, human responsibilities, and the parent-output contract. AI may change execution methods and group boundaries, but must not claim a human-owned decision, authorization, accountability, or excluded downstream work. Describe AI outputs that support those responsibilities when needed.
 - Preserve the required work and deliverables of every replaced subtask across the combined agentic tasks. Do not invent responsibilities unrelated to the transformation.
-- Preserve the original parent-task boundary. Treat downstream roles, handoffs, or later decisions mentioned in the task description as context unless the supplied baseline explicitly assigns their execution to this parent task.
-- Do not claim ownership of RETAIN work; human-owned approval, escalation, accountability, or exception responsibilities remain outside the agentic task.
+- Treat downstream roles, handoffs, or later decisions as context unless the supplied baseline explicitly assigns their execution to this parent task.
 - Describe semantic responsibility and expected deliverables only. Do not describe tools, execution graphs, orchestration, staffing, time, savings, capacity, or human added work.
 - Do not estimate human interaction time, verification time, agent execution time, human-effort reduction, throughput, capacity, or financial impact.
 - Each agentic task must have a stable ID, nonempty name and description, at least one required input, and at least one expected output.
@@ -201,13 +198,10 @@ Identify the human activities required to interact with agentic tasks and verify
 Activity Identification:
 - Reference only supplied agentic task IDs. Do not reconstruct or regroup baseline subtasks.
 - Assess human interaction and verification independently of the technological automation potential used to classify baseline subtasks as RETAIN or REMOVE.
-- Agent ownership of a responsibility does not imply that human interaction or verification is unnecessary.
 - Identify meaningful human actions arising from the post-AI operating model, including routine interaction, verification, and conditional intervention.
 - Consider the agentic responsibilities, expected outputs, information availability, uncertainty, reliability limitations, and requirements for accepting or acting on agent outputs.
 - Use only AI_INTERACTION and AI_VERIFICATION. Classify activities by what the human does, not why the activity is triggered.
 - One activity may reference multiple agentic tasks. Do not create separate activities merely because multiple agents are involved.
-- Distinguish technical capability for autonomous execution from the human involvement required in the intended operating model.
-- Do not invent human activities solely because AI is involved, and do not exclude them solely because agents can technically perform the underlying work autonomously.
 
 AI_INTERACTION:
 - Model human communication or collaboration with agents, including queries, explanations, clarifications, instructions, and additional context.
@@ -244,7 +238,8 @@ Operating Model Assumptions:
 Scope and Boundaries:
 - Preserve the original parent-task completion boundary. Exclude downstream decisions, adjudication, settlement, and later-process execution unless explicitly included in the parent task.
 - Do not recreate REMOVE work, duplicate RETAIN responsibilities, or invent unrelated human work.
-- Retained approval, escalation, and accountability remain human-owned and must not be counted again as added human-agent activities.
+- Preserve required human decisions, authorization, communication, and active accountability actions after substitution; model only remaining human work, not removed execution.
+- Model required decisions or authorization as AI_VERIFICATION when evaluating or authorizing agent output, or AI_INTERACTION when directing the agent; exclude replaced baseline execution.
 - Define each activity by its human action, trigger, and associated agentic tasks.
 - Keep activities distinct but avoid overlapping reviews, repeated approvals, and unnecessary fragmentation.
 - A single interaction may include reviewing findings, questioning the agent, and confirming a recommendation. Split it only when the human actions represent meaningfully different responsibilities.

@@ -25,6 +25,7 @@ from task_transmorph.interfaces import SemanticEvaluator
 from task_transmorph.providers.prompts import (
     ACTIVITY_EFFORT_ESTIMATION_PROMPT,
     AGENTIC_TASK_SYNTHESIS_PROMPT,
+    HUMAN_AGENT_ACTIVITY_MODELING_PROMPT,
     OPERATIONAL_DECOMPOSITION_PROMPT,
     RETAIN_REMOVE_PROMPT,
 )
@@ -455,6 +456,34 @@ def test_transformation_prompts_preserve_task_scope_and_effort_denominator():
         "retained human responsibilities",
     ):
         assert phrase in ACTIVITY_EFFORT_ESTIMATION_PROMPT
+
+
+def test_transformation_prompts_separate_substitutability_from_human_responsibility():
+    assert "Classify the core operational execution, not every responsibility" in (
+        RETAIN_REMOVE_PROMPT
+    )
+    assert "A REMOVE classification may still require a narrower human decision" in (
+        RETAIN_REMOVE_PROMPT
+    )
+    assert "must not claim a human-owned decision" in AGENTIC_TASK_SYNTHESIS_PROMPT
+    assert "required human decisions, authorization, communication" in (
+        HUMAN_AGENT_ACTIVITY_MODELING_PROMPT
+    )
+    assert "exclude replaced baseline execution" in (
+        HUMAN_AGENT_ACTIVITY_MODELING_PROMPT
+    )
+
+
+def test_transformation_prompts_preserve_autonomous_execution_and_scope():
+    assert (
+        "Fully autonomous execution with no additional human activity remains valid"
+        in (HUMAN_AGENT_ACTIVITY_MODELING_PROMPT)
+    )
+    assert "excluded downstream work" in AGENTIC_TASK_SYNTHESIS_PROMPT
+    assert (
+        "Do not interpret unspecified oversight requirements as confirmation of fully autonomous operation"
+        in (HUMAN_AGENT_ACTIVITY_MODELING_PROMPT)
+    )
 
 
 def test_scope_regression_cases_preserve_acceptance_and_blocking_boundaries():

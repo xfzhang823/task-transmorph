@@ -33,6 +33,7 @@ from task_transmorph.providers._semantic import (
     semantic_payload,
 )
 from task_transmorph.providers._shared import (
+    DEFAULT_MAX_OUTPUT_TOKENS,
     make_stage_response,
     parse_model_payload,
     raise_provider_failure,
@@ -61,7 +62,7 @@ class GeminiProviderConfig:
 
     model: str = DEFAULT_GEMINI_MODEL
     api_key: str | None = field(default=None, repr=False)
-    max_output_tokens: int | None = 2000
+    max_output_tokens: int | None = DEFAULT_MAX_OUTPUT_TOKENS
     stage_output_tokens: Mapping[str | ProviderStage, int] | None = None
 
     def __post_init__(self):

@@ -32,6 +32,7 @@ from task_transmorph.providers._semantic import (
     semantic_payload,
 )
 from task_transmorph.providers._shared import (
+    DEFAULT_MAX_OUTPUT_TOKENS,
     make_stage_response,
     parse_model_payload,
     raise_provider_failure,
@@ -86,7 +87,7 @@ class DeepSeekProviderConfig:
     api_key: str | None = field(default=None, repr=False)
     base_url: str = DEFAULT_DEEPSEEK_BASE_URL
     timeout: float | None = None
-    max_tokens: int | None = 16000
+    max_tokens: int | None = DEFAULT_MAX_OUTPUT_TOKENS
     stage_output_tokens: Mapping[str | ProviderStage, int] | None = None
 
     def __post_init__(self):

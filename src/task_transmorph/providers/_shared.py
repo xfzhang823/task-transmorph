@@ -21,6 +21,8 @@ from task_transmorph.errors import (
     ProviderOutputError,
 )
 
+DEFAULT_MAX_OUTPUT_TOKENS = 16_000
+
 OUTPUT_TOKEN_STAGES = frozenset(
     {
         ProviderStage.OPERATIONAL_DECOMPOSITION.value,

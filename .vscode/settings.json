@@ -1,8 +1,8 @@
 {
   "notebook.formatOnSave.enabled": true,
-  "notebook.defaultFormatter": "charliermarsh.ruff",
+  "notebook.defaultFormatter": "ms-python.black-formatter",
   "[python]": {
-    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.defaultFormatter": "ms-python.black-formatter",
     "editor.formatOnSave": true
   }
 }

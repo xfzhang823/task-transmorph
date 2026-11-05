@@ -40,6 +40,7 @@ from task_transmorph.providers._semantic import (
     semantic_payload,
 )
 from task_transmorph.providers._shared import (
+    DEFAULT_MAX_OUTPUT_TOKENS,
     make_stage_response,
     raise_provider_failure,
     request_metadata,
@@ -283,7 +284,7 @@ class OpenAIProviderConfig:  # pylint: disable=too-many-instance-attributes
     # Avoid leaving notebook and application calls blocked indefinitely when
     # the provider connection or generation stalls.
     timeout: float | None = 120.0
-    max_output_tokens: int | None = 2000
+    max_output_tokens: int | None = DEFAULT_MAX_OUTPUT_TOKENS
     stage_output_tokens: Mapping[str | ProviderStage, int] | None = None
 
     def __post_init__(self):

@@ -156,6 +156,42 @@ def test_supplied_parent_contract_is_preserved():
     assert result.parent_output_contract == contract
 
 
+@pytest.mark.parametrize(
+    ("completion_boundary", "scope_exclusions"),
+    [
+        (
+            "The approved schedule has been released to the factory floor.",
+            (),
+        ),
+        (
+            "The schedule has been prepared and released to the factory floor.",
+            ("Planner or manager approval before release",),
+        ),
+        (
+            "The approved schedule has been released to the factory floor.",
+            ("Planner or manager approval before release",),
+        ),
+    ],
+)
+def test_supplied_parent_contract_cases_are_propagated_verbatim(
+    completion_boundary, scope_exclusions
+):
+    """Propagation preserves in-scope, excluded, and contradictory input."""
+    contract = ParentOutputContract(
+        output_unit="One completed production schedule",
+        completion_boundary=completion_boundary,
+        scope_exclusions=scope_exclusions,
+        source="supplied",
+    )
+    result = decompose_task(
+        request().model_copy(update={"parent_output_contract": contract}),
+        BaselineProvider(bottom_up_operational()),
+    )
+
+    assert result.parent_output_contract == contract
+    assert result.operational_decomposition.parent_output_contract == contract
+
+
 def test_zero_bottom_up_effort_does_not_fabricate_weights():
     result = decompose_task(
         request(), BaselineProvider(bottom_up_operational(values=(0, 0, 0)))

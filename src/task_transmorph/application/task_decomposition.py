@@ -130,7 +130,7 @@ def decompose_task(
         allocations = _allocate_baseline(request, operational)
         return TaskDecomposition(
             operational_decomposition=operational,
-            parent_output_contract=_parent_output_contract(request, operational),
+            parent_output_contract=operational.parent_output_contract,
             baseline_effort_estimation=baseline_estimation,
             baseline_effort_allocations=allocations,
             provenance_refs=operational.provenance_refs
@@ -343,7 +343,12 @@ def _allocate_baseline(request, operational):
 
 
 def _prepare_operational(request, operational):
-    """Derive relative weights from validated absolute estimates."""
+    """Attach the canonical contract and derive relative weights."""
+    operational = operational.model_copy(
+        update={
+            "parent_output_contract": _parent_output_contract(request, operational),
+        }
+    )
     estimates = operational.baseline_effort_estimates
     if not estimates:
         return operational

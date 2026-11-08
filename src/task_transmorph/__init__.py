@@ -6,6 +6,7 @@ from task_transmorph.application import (
     decompose_transformation,
     estimate_transformation,
 )
+from task_transmorph.catalog import get_provider_model_catalog
 from task_transmorph.contracts import (
     AbsoluteEffortInput,
     AccountingMode,
@@ -218,6 +219,7 @@ __all__ = [
     "decompose_task",
     "decompose_transformation",
     "estimate_transformation",
+    "get_provider_model_catalog",
     "validate_activity_effort_estimation",
     "validate_agentic_task_synthesis",
     "validate_baseline_effort_estimates",

@@ -4,9 +4,9 @@
 def get_provider_model_catalog() -> tuple[dict[str, object], ...]:
     """Return the curated provider/model choices for display surfaces.
 
-    The empty model value in a ``model_options`` pair means "use the
-    provider's configured default". Catalog membership is display metadata;
-    it does not guarantee that a provider account currently offers a model.
+    Every ``model_options`` pair contains a concrete model identifier.
+    Catalog membership is display metadata; it does not guarantee that a
+    provider account currently offers a model.
     """
     from task_transmorph.providers.deepseek import (
         DEFAULT_DEEPSEEK_MODEL,
@@ -31,7 +31,6 @@ def get_provider_model_catalog() -> tuple[dict[str, object], ...]:
             OpenAIProviderConfig,
             "OpenAI",
             (
-                ("Provider default", ""),
                 ("gpt-6-luna", "gpt-6-luna"),
                 ("gpt-6.1-sol", "gpt-6.1-sol"),
                 ("gpt-6-astra", "gpt-6-astra"),
@@ -46,7 +45,6 @@ def get_provider_model_catalog() -> tuple[dict[str, object], ...]:
             GeminiProviderConfig,
             "Gemini",
             (
-                ("Provider default", ""),
                 ("gemini-3.5-flash-lite", "gemini-3.5-flash-lite"),
                 ("gemini-3.8-flash", "gemini-3.8-flash"),
                 ("gemini-4-argon", "gemini-4-argon"),
@@ -59,7 +57,6 @@ def get_provider_model_catalog() -> tuple[dict[str, object], ...]:
             DeepSeekProviderConfig,
             "DeepSeek",
             (
-                ("Provider default (V4.1 Flash)", ""),
                 ("DeepSeek V4.1 Flash (current)", "deepseek-flash"),
                 ("DeepSeek V4 Pro (legacy comparison)", "deepseek-v4-pro"),
             ),

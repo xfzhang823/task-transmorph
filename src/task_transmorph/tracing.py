@@ -107,10 +107,12 @@ class TraceLogger:
         enabled: bool = False,
         directory: str | Path | None = None,
         console: bool = True,
+        include_content: bool = False,
     ):
         self.enabled = enabled
         self.directory = resolve_trace_directory(directory)
         self.console = console
+        self.include_content = include_content
         self._trace_file: Path | None = None
 
     @classmethod
@@ -119,6 +121,7 @@ class TraceLogger:
             enabled=_env_bool("TASK_TRANSMORPH_TRACE_ENABLED", False),
             directory=os.getenv("TASK_TRANSMORPH_TRACE_DIR", "logs/llm"),
             console=_env_bool("TASK_TRANSMORPH_TRACE_CONSOLE", True),
+            include_content=_env_bool("TASK_TRANSMORPH_TRACE_INCLUDE_CONTENT", False),
         )
 
     @contextmanager
@@ -177,23 +180,29 @@ class TraceLogger:
     ) -> TraceInvocation:
         correlation_id = self.current_correlation_id(request_id)
         invocation = TraceInvocation(correlation_id, stage, time.perf_counter())
+        request_data = {
+            "kind": kind,
+            "model": model,
+            "parameters": parameters,
+            "structured_output_schema": (
+                schema.model_json_schema()
+                if hasattr(schema, "model_json_schema")
+                else schema
+            ),
+        }
+        if self.include_content:
+            request_data["messages"] = messages
+        else:
+            request_data["message_count"] = (
+                len(messages) if isinstance(messages, (list, tuple)) else None
+            )
         self.emit(
             "llm.request",
             provider=provider,
             stage=stage,
             correlation_id=correlation_id,
             attempt=attempt,
-            data={
-                "kind": kind,
-                "model": model,
-                "parameters": parameters,
-                "messages": messages,
-                "structured_output_schema": (
-                    schema.model_json_schema()
-                    if hasattr(schema, "model_json_schema")
-                    else schema
-                ),
-            },
+            data=request_data,
         )
         return invocation
 
@@ -229,33 +238,42 @@ class TraceLogger:
         structured_content_produced = (
             completion_result == "success" and raw_output_state == "available"
         )
+        response_data = {
+            "latency_ms": round(
+                (time.perf_counter() - invocation.started_at) * 1000, 3
+            ),
+            "result": completion_result,
+            "raw_response_available": raw is not None,
+            "usage": _safe(_response_usage(raw)),
+            "response_metadata": response_metadata,
+            "completion_status": response_status,
+            "incomplete_reason": incomplete_reason,
+            "structured_content_produced": structured_content_produced,
+        }
+        if self.include_content:
+            response_data.update(
+                {
+                    "raw_response": raw,
+                    "raw_output": raw_output if raw_output is not _MISSING else None,
+                    "raw_output_available": raw_output_available,
+                    "raw_output_state": raw_output_state,
+                }
+            )
         self.emit(
             "llm.response",
             stage=stage,
             correlation_id=invocation.correlation_id,
-            data={
-                "latency_ms": round(
-                    (time.perf_counter() - invocation.started_at) * 1000, 3
-                ),
-                "result": completion_result,
-                "raw_response": raw,
-                "raw_response_available": raw is not None,
-                "raw_output": raw_output if raw_output is not _MISSING else None,
-                "raw_output_available": raw_output_available,
-                "raw_output_state": raw_output_state,
-                "usage": _safe(_response_usage(raw)),
-                "response_metadata": response_metadata,
-                "completion_status": response_status,
-                "incomplete_reason": incomplete_reason,
-                "structured_content_produced": structured_content_produced,
-            },
+            data=response_data,
         )
         if parsed is not None:
+            parsed_data = {"content_included": self.include_content}
+            if self.include_content:
+                parsed_data["parsed_response"] = parsed
             self.emit(
                 "llm.parsed",
                 stage=stage,
                 correlation_id=invocation.correlation_id,
-                data={"parsed_response": parsed},
+                data=parsed_data,
             )
 
     def exception(
@@ -282,8 +300,16 @@ class TraceLogger:
                 "message": str(exc),
                 "cause": repr(exc.__cause__) if exc.__cause__ else None,
                 "context": repr(exc.__context__) if exc.__context__ else None,
-                "exception_attributes": (vars(exc) if hasattr(exc, "__dict__") else {}),
-                "attached_provider_data": attached,
+                "exception_attributes": (
+                    vars(exc)
+                    if self.include_content and hasattr(exc, "__dict__")
+                    else {"available": bool(vars(exc))}
+                    if hasattr(exc, "__dict__")
+                    else {}
+                ),
+                "attached_provider_data": attached
+                if self.include_content
+                else {"available": bool(attached)},
                 "raw_response_available": raw_attached,
                 "raw_output_state": "available" if raw_attached else "unavailable",
                 "diagnostics": diagnostics,
@@ -300,11 +326,14 @@ class TraceLogger:
         response: Any = None,
         attempt: int | None = None,
     ):
+        validation_data = {"result": result}
+        if self.include_content:
+            validation_data.update({"errors": errors, "response": response})
         self.emit(
             f"validation.{phase}",
             stage=stage,
             attempt=attempt,
-            data={"result": result, "errors": errors, "response": response},
+            data=validation_data,
         )
 
     def repair(
@@ -316,16 +345,20 @@ class TraceLogger:
         rejected_output: Any,
         repaired_output: Any = None,
     ):
+        repair_data = {"result": "success" if repaired_output is not None else "pending"}
+        if self.include_content:
+            repair_data.update(
+                {
+                    "feedback": feedback,
+                    "rejected_output": rejected_output,
+                    "repaired_output": repaired_output,
+                }
+            )
         self.emit(
             "repair.output" if repaired_output is not None else "repair.request",
             stage=stage,
             attempt=attempt,
-            data={
-                "result": "success" if repaired_output is not None else "pending",
-                "feedback": feedback,
-                "rejected_output": rejected_output,
-                "repaired_output": repaired_output,
-            },
+            data=repair_data,
         )
 
     def emit(

@@ -1,68 +1,148 @@
 # Application
 
-Provider-agnostic orchestration. This layer takes a provider object or built-in provider name (resolved through the provider factory), drives the staged flow, treats every provider result as untrusted, and ends in deterministic canonical accounting. It does not own vendor SDK calls, persistence, or workflow I/O; provider construction and tracing may read configuration from the environment.
+The `application/` package orchestrates **task decomposition and AI transformation analysis**. It connects provider-generated judgments to validated, deterministic effort accounting. It does not own vendor SDK calls, persistence, workflow I/O, resource capacity, staffing, or workflow throughput.
 
-Dependency direction: `application/` → `interfaces/` (behavioral protocols) and `contracts/` (data schemas); concrete providers live in `providers/`.
+A provider can be supplied as an object or selected by a built-in name through the provider factory. Provider responses are treated as untrusted inputs: the application validates them before using them for downstream accounting. Provider construction and tracing may read environment configuration; the canonical arithmetic remains local and deterministic.
 
-## How to read this layer
+## The process at a glance
 
-Two kinds of module sit here:
+```text
+Human task (e.g., production scheduling)
+    |
+    v
+1. Operational decomposition — decompose_task()
+   Provider proposes subtasks, occurrences, and active-effort estimates
+   -> validate and evaluate -> derive baseline effort and allocations
+    |
+    v
+Reusable TaskDecomposition (frozen baseline)
+    |
+    v
+2. Transformation decomposition — decompose_transformation()
+   Provider classifies retained/removed work and models agentic and
+   human-agent activities; application validates the stages
+    |
+    v
+Canonical accounting — domain/accounting
+   Baseline versus transformed effort and accounting impact
+    |
+    v
+TransformationDecompositionResult
+```
 
-- **Provider-driven services** call a provider through an interface and validate the result — `task_decomposition.py`, `transformation_decomposition.py`, `provider_service.py`.
-- **The provider-independent accounting handoff** validates already-typed stages and delegates all arithmetic to canonical accounting — internal `staged_pipeline.py`.
+The first stage establishes **what people do today and how much active effort it requires**. The second stage evaluates **how that work changes with AI**. Transformation reuses the accepted baseline rather than asking the provider to invent a new one. The library measures effort per completed parent output, not end-to-end workflow throughput.
 
-`_provider_stage.py` holds the shared helpers for the provider-driven side: the `provider_id` guard, `call_stage`, and stage validation wrappers. The canonical transformation provider implements classification, agentic synthesis, human-agent activity modeling, and activity-effort estimation as one required sequence.
+## Key concepts
 
-## Entry points
+| Term | Meaning |
+| --- | --- |
+| **Parent output** | One completed unit of the task, such as one approved and released production schedule. All baseline effort is measured relative to this output. |
+| **Operational subtask** | A constituent activity required to produce the parent output. |
+| **Expected occurrences** | Average number of times a subtask happens per parent output. It may be fractional when a step occurs only some of the time. |
+| **Active effort** | Human work time spent on an activity, distinct from elapsed time or waiting. |
+| **Baseline / frozen baseline** | The validated pre-transformation subtasks, estimates, and allocations reused unchanged during transformation. |
+| **Relative weight** | A subtask's share of total baseline effort. |
+| **Allocation** | The normalized, transformation-facing representation of baseline work, optionally carrying compatible absolute effort and provenance. |
+| **RETAIN / REMOVE** | Classification of baseline work as retained human work or work removed from the human baseline by transformation. |
+| **W0 / W1** | Baseline and post-transformation work measures used by canonical accounting; their precise interpretation depends on the absolute or normalized accounting input. |
+| **Support work** | Human work associated with the transformed arrangement, including activities represented through the established support-work categories. |
+
+## Worked example: production scheduling
+
+Suppose the parent output is **one approved and released production schedule**. Two of its operational subtasks have the following provider-estimated inputs:
+
+| Subtask | Expected occurrences per schedule | Active effort per occurrence | Expected effort per schedule |
+| --- | ---: | ---: | ---: |
+| Assess production resource capacity | 1.00 | 1.00 hour | 1.00 hour |
+| Resolve scheduling constraints with production management | 0.35 | 0.75 hour | 0.2625 hour |
+
+The second subtask is expected to arise in 35% of scheduling operations. When it does, it takes 0.75 hours of active effort. Its *average contribution* is therefore `0.35 × 0.75 = 0.2625` hours per completed schedule; this does **not** mean an individual occurrence lasts 0.2625 hours.
+
+In the ten-subtask production-scheduling example, the estimated total is **5.3625 hours of active human effort per schedule**. Assessing capacity contributes `1.00 / 5.3625 ≈ 18.65%`; resolving constraints contributes `0.2625 / 5.3625 ≈ 4.90%`. These shares become normalized baseline allocations for transformation accounting. The values are illustrative provider estimates, not observed measurements or throughput predictions.
+
+## Canonical baseline-effort semantics
+
+For each subtask `i`, the provider supplies expected occurrences, active human effort per occurrence, and supporting rationale and assumptions. The application owns the arithmetic:
+
+```text
+expected_effort_i = expected_occurrences_i × active_effort_per_occurrence_i
+total_baseline_effort = Σ expected_effort_i
+relative_weight_i = expected_effort_i / total_baseline_effort
+allocation_weight_i = relative_weight_i / Σ relative_weight
+```
+
+Occurrences are dimensionless expected counts per parent output. Active effort, expected subtask effort, and total baseline effort are `EffortQuantity` values with explicit units and time bases; canonical baseline estimates use `per_operation`. Weights and allocation ratios are dimensionless shares, **not** durations or capacity.
+
+`validate_baseline_effort_estimates()` canonicalizes compatible units and materializes expected-effort products. `_prepare_operational()` derives relative weights from those products; provider-supplied relative weights are not authoritative. `_allocate_baseline()` uses `allocate_effort()` to normalize them against a synthetic `W0 = 1.0` parent. A caller-supplied absolute baseline may also produce compatible absolute allocations.
+
+`OperationalSubtask.relative_effort_weight` is the operational-stage projection; `BaselineEffortAllocation.weight_ratio` is the frozen, transformation-facing allocation. They have the same canonical proportions but serve different contracts. Allocations also carry their source and may carry absolute effort.
+
+**Consistency before transformation.** `validate_task_decomposition_consistency()` checks products and totals exactly using `Decimal`, requires both estimate arrays to agree by `subtask_id`, verifies IDs and coverage, and checks relative and allocation ratios with an explicit `1e-9` tolerance for rounded representations. When total effort is zero, normalized shares are undefined, so relative weights and allocations must be absent. This validation runs before provider resolution or transformation stages, including when a host returns a previously serialized decomposition to the Transform API.
+
+These checks establish **mathematical consistency**, not the accuracy of provider/LLM estimates, assumptions, or rationales. Semantic evaluation separately reviews the proposed decomposition's scope and assumptions.
+
+## Public entry points
 
 | Function | Module | Input → output | Calls a provider? |
 | --- | --- | --- | --- |
-| `decompose_task` | `task_decomposition.py` | task + provider → `TaskDecomposition` (mandatory bottom-up estimates, optional measured baseline effort) | Yes |
-| `decompose_transformation` | `transformation_decomposition.py` | existing `TaskDecomposition` + explicit accounting input + provider → `TransformationDecompositionResult` | Yes |
-| `estimate_transformation` | `normalized_estimation.py` | existing `TaskDecomposition` + provider → normalized `TransformationDecompositionResult` | Yes |
-| `decompose` | `provider_service.py` | canonical task request + transformation context + provider + explicit accounting → `TransformationDecompositionResult` | Yes |
-The staged handoff is internal to transformation decomposition and normalized estimation. Baseline and activity effort are anchored to one completed parent output; the application does not calculate resource capacity, staffing, or workflow throughput.
+| `decompose_task` | `task_decomposition.py` | Task + provider → `TaskDecomposition` (mandatory bottom-up estimates; optional measured baseline effort) | Yes |
+| `decompose_transformation` | `transformation_decomposition.py` | Existing `TaskDecomposition` + explicit accounting input + provider → `TransformationDecompositionResult` | Yes |
+| `estimate_transformation` | `normalized_estimation.py` | Existing `TaskDecomposition` + provider → normalized `TransformationDecompositionResult` | Yes |
+| `decompose` | `provider_service.py` | Canonical task request + transformation context + provider + explicit accounting → `TransformationDecompositionResult` | Yes |
 
-## `staged_pipeline.py` — the provider-independent core
+**Which path to use:** `decompose_task()` followed by `decompose_transformation()` is the intended two-call composition when the host provides explicit `AbsoluteEffortInput` or `NormalizedAccountingInput`. `estimate_transformation()` is an opt-in exploratory/notebook bridge when host-supplied accounting is unavailable: it constructs normalized 100-unit accounting with `W0 = 1.0`, records per-subtask assumptions and rationales, and uses the same accounting handoff. It does not create host-calibrated absolute effort or weaken the explicit-input contract of `decompose_transformation()`.
 
-The internal `_run_staged_pipeline` function is a **boundary checker, not a calculator**. It computes no formulas; every W0/W1/gross/net/effect number comes from `domain/accounting` and it returns the canonical accounting impact directly.
+## Architecture and module responsibilities
 
-Flow:
+Dependency direction: `application/` → `interfaces/` (behavioral protocols) and `contracts/` (data schemas). Concrete providers live in `providers/`; canonical accounting formulas live in `domain/accounting`.
 
-1. **Validate the chain** — `validate_stage_chain` coerces dicts to typed models and checks the three stages are mutually consistent (IDs, classifications, dependencies).
-2. **Cross-check the effort handoff** — `_validate_effort_handoff` requires the explicit accounting input to agree with the classified subtask effort. This is the "must not invent effort" guard.
-3. **Receive activity-based support work** — the activity-effort stage is converted into existing support-work categories before the staged handoff.
-4. **Delegate to canonical accounting** — dispatch on input type to `account_absolute` or `account_normalized`, injecting the resolved support work.
-5. **Return accounting** — transformation orchestration assembles the public `TransformationDecompositionResult` from the validated stage values and accounting impact.
+Two kinds of modules belong here:
 
-The four private helpers:
+- **Provider-driven services:** `task_decomposition.py`, `transformation_decomposition.py`, and `provider_service.py` call providers through interfaces, validate their outputs, and orchestrate stages.
+- **Provider-independent accounting handoff:** internal `staged_pipeline.py` validates typed stage results and routes them to canonical accounting. It does not implement alternative accounting formulas.
 
-- `_validate_effort_handoff` — the heaviest (~100 of 269 lines). *Absolute*: per-subtask effort is all-present or all-absent; if present, units must match and RETAIN/REMOVE sums must equal `retained_human_work` / `gross_removed_work`. *Normalized*: baseline ratios (or normalized per-row totals) must equal `retained_work_ratio` / `gross_removed_work_ratio`. Any mismatch raises `MissingAccountingInputError`.
-- `_require_matching_units` — all classified efforts must share one unit and time basis.
+`_provider_stage.py` supplies shared provider-stage helpers: the `provider_id` guard, `call_stage`, and stage-validation wrappers. The canonical transformation provider follows a required sequence: classification, agentic synthesis, human-agent activity modeling, and activity-effort estimation. Built-in OpenAI, Gemini, and DeepSeek providers implement that sequence; external providers must implement the same stage protocol. Incomplete implementations and invalid output fail explicitly. Application APIs accept an optional per-call `model` without mutating provider objects.
 
-Load-bearing invariants:
+### `task_decomposition.py` — build the reusable baseline
 
-- **Explicit effort only** — `accounting_input` is required; the pipeline never infers effort from missing provider data.
-- **No silent coercion** — mixed present/absent effort is an error, not a default; mixed bases/units raise `SupportBasisConflictError` / `IncompatibleEffortUnitError`.
-- **Pure and host-neutral** — deterministic given inputs.
-- **Single source of truth for formulas** — this file only validates and routes.
+`decompose_task()` performs operational decomposition **without transformation context or accounting**:
 
-## `task_decomposition.py` — build a reusable decomposition
+1. Resolve a provider name or use the supplied provider object; require `TaskDecompositionProvider`.
+2. Call `OPERATIONAL_DECOMPOSITION` and structurally validate its output.
+3. Run `SemanticEvaluator`; when supported, use bounded targeted repair through `repair_operational_decomposition`, then revalidate and re-evaluate the complete result. Evaluator capability can be provider-default or supplied through `evaluator=`.
+4. Require complete bottom-up effort estimates for all accepted subtasks; derive relative weights in `_prepare_operational()`.
+5. Normalize the accepted baseline in `_allocate_baseline()`.
 
-`decompose_task` runs only the first stage: a provider proposes operational subtasks, with no transformation context and no accounting. The result (`TaskDecomposition`) is the reusable input the transformation path consumes.
+Only an accepted decomposition reaches allocation. The result is a reusable `TaskDecomposition`.
 
-Flow: resolve a built-in provider name through the provider factory (or preserve an already-constructed provider object) → check the provider implements `TaskDecompositionProvider` → `call_stage(OPERATIONAL_DECOMPOSITION)` → deterministic structural validation → `SemanticEvaluator` evaluation → bounded targeted repair through the provider's optional `repair_operational_decomposition` hook → structural revalidation and complete-decomposition re-evaluation → deterministic derivation of relative weights from bottom-up estimates in `_prepare_operational` → deterministic normalization in `_allocate_baseline`. Only an accepted decomposition reaches allocation; evaluator capability is provider-default or explicit via `decompose_task(..., evaluator=...)`.
+### `transformation_decomposition.py` — classify and account the baseline
 
-`_prepare_operational` derives each relative effort weight from bottom-up expected active effort per parent output, calculated as `expected_occurrences_per_parent_output × active_effort_per_occurrence`; provider-supplied relative weights are not authoritative. Canonical validation requires a complete bottom-up estimate for every operational subtask before this derivation. The deterministic `allocate_effort` utility then normalizes those derived weights against a synthetic `W0 = 1.0` parent, producing `BaselineEffortAllocation.weight_ratio` values. A caller-supplied absolute baseline may also materialize compatible absolute allocations.
+`decompose_transformation()` consumes an existing `TaskDecomposition` plus explicit `AbsoluteEffortInput` or `NormalizedAccountingInput`. After validating the frozen baseline, it:
 
-These derived weights are dimensionless shares of baseline active human effort; their absolute numeric scale is not meaningful. The current application checks structural effort coverage and deterministic products, while semantic evaluation reviews scope and assumptions.
+1. Requires `TransformationDecompositionProvider` and obtains RETAIN/REMOVE classifications.
+2. Validates classification and uses `_apply_baseline_allocation()` to attach existing baseline effort to classified subtasks: `effort` in absolute mode or `baseline_effort_ratio` in normalized mode. The provider does not restate baseline effort.
+3. Synthesizes agentic tasks, models human-agent activities, and estimates activity effort.
+4. Converts activity estimates to established support-work categories and invokes `_run_staged_pipeline()`.
+5. Assembles `TransformationDecompositionResult` from validated stages and canonical accounting impact.
 
-## `transformation_decomposition.py` — classify and account a reusable decomposition
+Human-agent activities are **not** independently added to W1; their estimated effort is handled through the existing support-work conversion and accounting boundary.
 
-`decompose_transformation` mirrors `decompose_task`: it takes an existing `TaskDecomposition` plus explicit `AbsoluteEffortInput` or `NormalizedAccountingInput`, resolves a provider name when requested, runs RETAIN/REMOVE classification, synthesizes agentic tasks, models human-agent activities, estimates activity effort, and ends in accounting. The built-in OpenAI, Gemini, and DeepSeek providers implement this canonical sequence. External providers must implement the same required stage protocol; incomplete providers and invalid output fail explicitly. Both application APIs accept an optional per-call `model`; provider objects are never mutated.
+### `staged_pipeline.py` — validate the accounting handoff
 
-`estimate_transformation` is an opt-in bridge for exploratory or notebook runs without host-supplied accounting inputs. It uses the completed task allocation and provider RETAIN/REMOVE labels to construct a normalized 100-unit accounting input, fixes `W0 = 1.0`, records per-subtask estimate assumptions and rationales, and reuses the same support-work and deterministic accounting handoff. It does not produce host-calibrated absolute effort quantities or change the strict explicit-input contract of `decompose_transformation`.
+Internal `_run_staged_pipeline()` is a **boundary checker and dispatcher, not a calculator**. W0/W1, gross/net work, and effect calculations come from `domain/accounting`.
 
-Flow: check the provider implements `TransformationDecompositionProvider` → `classify_retain_remove` → `validate_classification_response` → `_apply_baseline_allocation` → synthesize agentic tasks → model human-agent activities → estimate activity effort → deterministic activity conversion → internal `_run_staged_pipeline` → assemble `TransformationDecompositionResult`. Activity estimates are semantic inputs plus deterministic products; they are converted to existing support-work categories before the accounting boundary. Human-agent activities themselves are not independently added to W1.
+1. `validate_stage_chain()` coerces dictionaries to typed models and checks stage consistency, including IDs, classifications, and dependencies.
+2. `_validate_effort_handoff()` requires explicit accounting inputs to agree with classified effort (the **must not invent effort** guard).
+3. Activity-based support work enters via existing support-work categories.
+4. Dispatch to `account_absolute()` or `account_normalized()` with resolved support work.
+5. Return canonical accounting impact for assembly into the public result.
 
-`_apply_baseline_allocation` injects the baseline effort already carried by the incoming decomposition into each classified subtask, so the provider need not restate it: absolute mode sets `effort`, normalized mode sets `baseline_effort_ratio`. `decompose_task` → `decompose_transformation` is the intended two-call composition.
+**Important invariants:**
+
+- **Explicit effort:** the staged pipeline never infers missing accounting input.
+- **Absolute handoff:** classified per-subtask effort is all present or all absent; when present, units agree and RETAIN/REMOVE sums match `retained_human_work` and `gross_removed_work`.
+- **Normalized handoff:** baseline ratios (or normalized per-row totals) match `retained_work_ratio` and `gross_removed_work_ratio`.
+- **No silent coercion:** inconsistent effort raises `MissingAccountingInputError`; incompatible units or bases raise `IncompatibleEffortUnitError` or `SupportBasisConflictError` as applicable.
+- **Host-neutral arithmetic:** given validated inputs, accounting is deterministic; this module validates and routes rather than duplicating formulas.
+
+`_require_matching_units()` ensures classified effort uses a consistent unit and time basis. These handoff checks are separate from the **baseline consistency validator**, which runs before transformation starts.

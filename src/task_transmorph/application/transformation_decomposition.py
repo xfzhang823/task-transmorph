@@ -69,6 +69,7 @@ from task_transmorph.evaluation.rubric import (
 )
 from task_transmorph.interfaces.provider import TransformationDecompositionProvider
 from task_transmorph.tracing import TraceLogger, current_tracer
+from task_transmorph.validation import validate_task_decomposition_consistency
 
 
 def decompose_transformation(
@@ -127,6 +128,7 @@ def decompose_transformation(
         SemanticEvaluatorUnavailableError: No evaluator is available for the
             post-accounting checkpoint.
     """
+    validate_task_decomposition_consistency(request.task_decomposition)
     provider = resolve_provider(
         provider, model=model, max_output_tokens=max_output_tokens
     )

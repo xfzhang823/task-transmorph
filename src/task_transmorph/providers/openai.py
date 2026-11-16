@@ -336,7 +336,7 @@ class OpenAIDecompositionProvider:
         invocation = self.tracer.invocation(
             provider=self.provider_id,
             stage=SEMANTIC_EVALUATION_STAGE,
-            model=self.config.model,
+            model=model,
             parameters=parameters,
             messages=messages,
             schema=SemanticEvaluation,

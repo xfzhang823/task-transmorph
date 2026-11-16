@@ -8,6 +8,7 @@ from task_transmorph.validation.stages import (
     validate_operational_decomposition,
     validate_retain_remove_classification,
     validate_stage_chain,
+    validate_task_decomposition_consistency,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "validate_operational_decomposition",
     "validate_retain_remove_classification",
     "validate_stage_chain",
+    "validate_task_decomposition_consistency",
 ]

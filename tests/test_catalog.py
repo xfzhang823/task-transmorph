@@ -24,14 +24,16 @@ def test_provider_model_catalog_contains_curated_display_options():
         "DeepSeek",
     ]
     assert catalog[0]["model_options"] == (
-        ("Provider default", ""),
         ("gpt-6-luna", "gpt-6-luna"),
         ("gpt-6.1-sol", "gpt-6.1-sol"),
         ("gpt-6-astra", "gpt-6-astra"),
         ("gpt-5.5", "gpt-5.5"),
         ("gpt-4o-mini", "gpt-4o-mini"),
     )
-    assert catalog[1]["model_options"][0] == ("Provider default", "")
+    assert catalog[1]["model_options"][0] == (
+        "gemini-3.5-flash-lite",
+        "gemini-3.5-flash-lite",
+    )
     assert catalog[2]["model_options"][-1] == (
         "DeepSeek V4 Pro (legacy comparison)",
         "deepseek-v4-pro",

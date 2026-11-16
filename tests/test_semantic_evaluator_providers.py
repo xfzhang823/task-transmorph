@@ -2,13 +2,6 @@ import json
 from types import SimpleNamespace
 
 import pytest
-from test_evaluation_contracts import evaluation_request, finding
-from test_task_transformation_boundaries import (
-    BoundaryProvider,
-    task_request,
-    transform_request,
-)
-
 from task_transmorph import decompose_task, decompose_transformation
 from task_transmorph.errors import (
     ProviderAuthenticationError,
@@ -39,6 +32,12 @@ from task_transmorph.providers.openai import (
     OpenAIProviderConfig,
 )
 from task_transmorph.tracing import TraceLogger
+from test_evaluation_contracts import evaluation_request, finding
+from test_task_transformation_boundaries import (
+    BoundaryProvider,
+    task_request,
+    transform_request,
+)
 
 
 class FakeResponses:
@@ -282,6 +281,22 @@ def test_openai_model_overrides_are_preserved_for_transformation_evaluation(conf
     assert client.responses.calls[0]["model"] == expected
 
 
+def test_openai_trace_records_resolved_semantic_evaluator_model(tmp_path):
+    tracer = TraceLogger(enabled=True, directory=tmp_path, console=False)
+    client = FakeOpenAIClient(output=evaluation(SemanticEvaluationDecision.ACCEPT))
+    provider = OpenAIDecompositionProvider(
+        OpenAIProviderConfig(model="gpt-6-luna"), client=client, tracer=tracer
+    )
+
+    provider.evaluate(evaluation_request())
+
+    trace_file = next(tmp_path.glob("task_transmorph_*.jsonl"))
+    records = [json.loads(line) for line in trace_file.read_text().splitlines()]
+    request = next(record for record in records if record["event"] == "llm.request")
+    assert request["data"]["model"] == "gpt-6-luna"
+    assert client.responses.calls[0]["model"] == "gpt-6-luna"
+
+
 def test_semantic_prompt_requires_concise_actionable_findings():
     from task_transmorph.providers.prompts import SEMANTIC_EVALUATION_PROMPT
 
@@ -386,3 +401,21 @@ def test_evaluator_tracing_has_distinct_stage_and_correlation(tmp_path, provider
         "llm.response",
         "llm.parsed",
     }
+
+
+def test_tracing_excludes_prompt_and_response_content_by_default(tmp_path):
+    tracer = TraceLogger(enabled=True, directory=tmp_path, console=False)
+    provider, _ = provider_factory(
+        "openai",
+        evaluation(SemanticEvaluationDecision.ACCEPT),
+        tracer=tracer,
+    )
+    provider.evaluate(evaluation_request())
+
+    trace_file = next(tmp_path.glob("task_transmorph_*.jsonl"))
+    records = [json.loads(line) for line in trace_file.read_text().splitlines()]
+    request = next(record for record in records if record["event"] == "llm.request")
+    response = next(record for record in records if record["event"] == "llm.response")
+    assert "messages" not in request["data"]
+    assert "raw_response" not in response["data"]
+    assert "latency_ms" in response["data"]

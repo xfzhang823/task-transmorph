@@ -8,6 +8,7 @@ and accounting domains to consume.
 """
 
 from collections.abc import Iterable
+from decimal import Decimal
 
 from pydantic import ValidationError
 
@@ -23,6 +24,7 @@ from task_transmorph.contracts.stages import (
     BaselineSubtaskEffortEstimate,
     HumanAgentActivityModel,
     OperationalDecomposition,
+    TaskDecomposition,
     RetainRemoveClassification,
     TaskReference,
 )
@@ -33,6 +35,9 @@ from task_transmorph.errors import (
     StageValidationError,
     UnknownReferenceError,
 )
+
+
+BASELINE_RATIO_TOLERANCE = Decimal("0.000000001")
 
 
 def validate_operational_decomposition(
@@ -204,6 +209,132 @@ def validate_baseline_effort_estimates(
             )
         )
     return value.model_copy(update={"baseline_effort_estimates": tuple(normalized)})
+
+
+def validate_task_decomposition_consistency(
+    value: TaskDecomposition,
+    *,
+    ratio_tolerance: Decimal = BASELINE_RATIO_TOLERANCE,
+) -> TaskDecomposition:
+    """Validate the repeated baseline representations before transformation.
+
+    The decomposition response intentionally carries both the operational-stage
+    estimates and the reusable baseline estimate/allocation projections. They
+    must describe one frozen baseline, not independently editable values.
+    Decimal arithmetic is used throughout; only normalized ratios use the
+    explicit tolerance because their serialized values may be rounded.
+    """
+    if ratio_tolerance < 0:
+        raise ValueError("baseline ratio tolerance cannot be negative")
+
+    operational = validate_baseline_effort_estimates(value.operational_decomposition)
+    _require_unique(
+        (subtask.subtask_id for subtask in operational.operational_subtasks),
+        "operational subtask IDs",
+    )
+    baseline = value.baseline_effort_estimation
+    if baseline is None:
+        raise StageValidationError(
+            "task decomposition requires baseline effort estimation"
+        )
+
+    operational_by_id = {
+        estimate.subtask_id: estimate
+        for estimate in operational.baseline_effort_estimates
+    }
+    baseline_ids = [estimate.subtask_id for estimate in baseline.estimates]
+    _require_unique(baseline_ids, "baseline effort estimation IDs")
+    if set(baseline_ids) != set(operational_by_id):
+        missing = sorted(set(operational_by_id) - set(baseline_ids))
+        extra = sorted(set(baseline_ids) - set(operational_by_id))
+        raise CardinalityError(
+            f"baseline effort estimate arrays disagree by subtask ID; "
+            f"missing={missing}, extra={extra}"
+        )
+
+    baseline_by_id = {estimate.subtask_id: estimate for estimate in baseline.estimates}
+    for subtask_id, estimate in operational_by_id.items():
+        other = baseline_by_id[subtask_id]
+        if estimate != other:
+            raise StageValidationError(
+                f"baseline effort estimate arrays disagree for subtask {subtask_id!r}"
+            )
+
+    total = baseline.total_effort_per_parent_output
+    expected_total = sum(
+        (
+            convert_effort_quantity(
+                estimate.expected_effort_per_parent_output,
+                total.unit,
+            ).value
+            for estimate in operational_by_id.values()
+        ),
+        Decimal("0"),
+    )
+    if total.time_basis is not TimeBasis.PER_OPERATION:
+        raise StageValidationError(
+            "baseline total effort must use per_operation time basis"
+        )
+    if total.value != expected_total:
+        raise StageValidationError(
+            "baseline total effort does not equal the sum of subtask effort"
+        )
+
+    subtasks = {
+        subtask.subtask_id: subtask for subtask in operational.operational_subtasks
+    }
+    allocations = {
+        allocation.subtask_id: allocation
+        for allocation in value.baseline_effort_allocations
+    }
+    if total.value == 0:
+        if any(
+            subtask.relative_effort_weight is not None for subtask in subtasks.values()
+        ):
+            raise StageValidationError(
+                "zero baseline total cannot have relative effort weights"
+            )
+        if allocations:
+            raise StageValidationError(
+                "zero baseline total cannot have effort allocations"
+            )
+        return value
+
+    if set(allocations) != set(subtasks):
+        missing = sorted(set(subtasks) - set(allocations))
+        extra = sorted(set(allocations) - set(subtasks))
+        raise CardinalityError(
+            f"baseline effort allocations disagree with subtasks; "
+            f"missing={missing}, extra={extra}"
+        )
+
+    for subtask_id, subtask in subtasks.items():
+        estimate = operational_by_id[subtask_id]
+        expected = convert_effort_quantity(
+            estimate.expected_effort_per_parent_output,
+            total.unit,
+        ).value
+        expected_ratio = expected / expected_total
+        if (
+            subtask.relative_effort_weight is None
+            or abs(subtask.relative_effort_weight - expected_ratio) > ratio_tolerance
+        ):
+            raise StageValidationError(
+                f"relative effort weight does not match expected effort for "
+                f"subtask {subtask_id!r}"
+            )
+
+        allocation = allocations[subtask_id]
+        if (
+            allocation.weight_ratio is None
+            or abs(allocation.weight_ratio - expected_ratio) > ratio_tolerance
+        ):
+            raise StageValidationError(
+                f"baseline allocation weight does not match expected effort for "
+                f"subtask {subtask_id!r}"
+            )
+
+    return value
 
 
 def validate_retain_remove_classification(

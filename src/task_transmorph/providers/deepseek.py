@@ -32,7 +32,6 @@ from task_transmorph.providers._semantic import (
     semantic_payload,
 )
 from task_transmorph.providers._shared import (
-    DEFAULT_MAX_OUTPUT_TOKENS,
     make_stage_response,
     parse_model_payload,
     raise_provider_failure,
@@ -54,6 +53,7 @@ from task_transmorph.tracing import TraceLogger
 
 DEFAULT_DEEPSEEK_MODEL = "deepseek-flash"
 DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+DEFAULT_DEEPSEEK_MAX_OUTPUT_TOKENS = 32_000
 
 
 def _truncation_message(response, stage, output_tokens) -> str | None:
@@ -87,7 +87,10 @@ class DeepSeekProviderConfig:
     api_key: str | None = field(default=None, repr=False)
     base_url: str = DEFAULT_DEEPSEEK_BASE_URL
     timeout: float | None = None
-    max_tokens: int | None = DEFAULT_MAX_OUTPUT_TOKENS
+    # DeepSeek reasoning tokens count against max_tokens before structured JSON
+    # is emitted; its provider default therefore needs more headroom than the
+    # shared OpenAI/Gemini default.
+    max_tokens: int | None = DEFAULT_DEEPSEEK_MAX_OUTPUT_TOKENS
     stage_output_tokens: Mapping[str | ProviderStage, int] | None = None
 
     def __post_init__(self):

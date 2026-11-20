@@ -3,7 +3,10 @@ import pytest
 from task_transmorph.contracts.provenance import ProviderStage
 from task_transmorph.providers._semantic import SEMANTIC_EVALUATION_STAGE
 from task_transmorph.providers._shared import DEFAULT_MAX_OUTPUT_TOKENS
-from task_transmorph.providers.deepseek import DeepSeekProviderConfig
+from task_transmorph.providers.deepseek import (
+    DEFAULT_DEEPSEEK_MAX_OUTPUT_TOKENS,
+    DeepSeekProviderConfig,
+)
 from task_transmorph.providers.gemini import GeminiProviderConfig
 from task_transmorph.providers.openai import OpenAIProviderConfig
 
@@ -13,7 +16,7 @@ CONFIGS = (OpenAIProviderConfig, GeminiProviderConfig, DeepSeekProviderConfig)
 DEFAULT_OUTPUT_TOKENS = {
     OpenAIProviderConfig: DEFAULT_MAX_OUTPUT_TOKENS,
     GeminiProviderConfig: DEFAULT_MAX_OUTPUT_TOKENS,
-    DeepSeekProviderConfig: DEFAULT_MAX_OUTPUT_TOKENS,
+    DeepSeekProviderConfig: DEFAULT_DEEPSEEK_MAX_OUTPUT_TOKENS,
 }
 
 

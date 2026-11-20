@@ -356,14 +356,17 @@ def validate_retain_remove_classification(
         The validated classification with canonical task, names, and indexes.
 
     Raises:
-        IdentityMismatchError: If the classification changes task identity or
-            operational order.
+        IdentityMismatchError: If the classification changes operational
+            subtask order.
         CardinalityError: If rows are duplicated, missing, or have invalid
             sequence coverage.
         UnknownReferenceError: If a row references an unknown subtask.
     """
     output = _validate_model(value, RetainRemoveClassification)
-    _require_task_identity(operational.task, output.task)
+    # The frozen operational task is canonical. The provider's top-level task
+    # object is an immutable identity echo, not a semantic proposal; attach the
+    # canonical value before validating the stage's mutable references.
+    output = output.model_copy(update={"task": operational.task})
     _require_unique(
         (item.subtask_id for item in output.classified_subtasks),
         "classified subtask IDs",
@@ -455,7 +458,7 @@ def validate_agentic_task_synthesis(
         UnknownReferenceError: If a source subtask is unknown.
     """
     output = _validate_model(value, AgenticTaskSynthesis)
-    _require_task_identity(operational.task, output.task)
+    output = output.model_copy(update={"task": operational.task})
     _require_unique(
         (item.agentic_task_id for item in output.agentic_tasks), "agentic task IDs"
     )
@@ -533,7 +536,7 @@ def validate_human_agent_activity_model(
         classification
     )  # Reserved for future semantic checks; synthesis is authoritative.
     output = _validate_model(value, HumanAgentActivityModel)
-    _require_task_identity(operational.task, output.task)
+    output = output.model_copy(update={"task": operational.task})
     _require_unique(
         (item.activity_id for item in output.activities), "human activity IDs"
     )
@@ -587,7 +590,7 @@ def validate_activity_effort_estimation(
             satisfy the deterministic contract.
     """
     output = _validate_model(value, ActivityEffortEstimation)
-    _require_task_identity(operational.task, output.task)
+    output = output.model_copy(update={"task": operational.task})
     known = {item.activity_id for item in activities.activities}
     actual = [item.activity_id for item in output.activity_effort_estimates]
     _require_unique(actual, "activity effort estimate IDs")
@@ -687,17 +690,6 @@ def _validate_model(value, model):
         return model.model_validate(value)
     except ValidationError as exc:
         raise StageValidationError(f"invalid {model.__name__}: {exc}") from exc
-
-
-def _require_task_identity(expected: TaskReference, actual: TaskReference) -> None:
-    """Require matching task ID and name while ignoring descriptive echoes."""
-    if (expected.task_id, expected.task_name) != (
-        actual.task_id,
-        actual.task_name,
-    ):
-        raise IdentityMismatchError(
-            "stage task identity does not match operational decomposition"
-        )
 
 
 def _require_unique(values: Iterable[str], label: str) -> None:
